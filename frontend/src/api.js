@@ -1,4 +1,5 @@
-const BASE_URL = "/api";
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const BASE_URL = API_BASE ? `${API_BASE}/api` : "/api";
 
 function getToken() {
   return localStorage.getItem("lelang_token");

@@ -1,6 +1,14 @@
 # Lelang Aset Internal Karyawan
 
-Aplikasi web untuk melelang aset dari cabang non-aktif kepada karyawan internal secara online. Terdiri dari backend (Express + SQLite) dan frontend (React + Vite).
+![GitHub repo](https://img.shields.io/badge/GitHub-bayutopscore--hub%2Flelangaset-181717?logo=github)
+![React](https://img.shields.io/badge/React-18.x-61DAFB?logo=react)
+![Express](https://img.shields.io/badge/Express-4.x-000000?logo=express)
+![SQLite](https://img.shields.io/badge/SQLite-Local-003B57?logo=sqlite)
+![Status](https://img.shields.io/badge/Status-Internal%20Demo-4CAF50)
+
+## Project Description
+
+Aplikasi web internal untuk melelang aset dari cabang non-aktif kepada karyawan perusahaan secara online. Sistem ini terdiri dari backend berbasis Express + SQLite dan frontend berbasis React + Vite, dengan fitur login, pencatatan tawaran, dan panel admin untuk mengelola aset dan pemenang lelang.
 
 ## Fitur
 
