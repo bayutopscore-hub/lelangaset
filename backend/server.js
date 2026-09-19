@@ -25,6 +25,8 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Terjadi kesalahan pada server." });
 });
 
+require("./data/seed")();
+
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`Server lelang internal berjalan di http://localhost:${PORT}`);
