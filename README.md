@@ -85,7 +85,7 @@ npm install
 cp .env.example .env
 ```
 
-Atur nilai di `backend/.env`, terutama `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ALLOWED_EMAIL_DOMAINS`, dan `CORS_ORIGIN`. Ganti semua nilai contoh sebelum deployment. `ALLOWED_EMAIL_DOMAINS` menerima domain tanpa `@`, dipisahkan koma jika lebih dari satu. Registrasi ditolak jika allowlist kosong atau email tidak cocok.
+Atur nilai di `backend/.env`, terutama `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ALLOWED_EMAIL_DOMAINS`, dan `CORS_ORIGIN`. Ganti semua nilai contoh sebelum deployment. `ALLOWED_EMAIL_DOMAINS` menerima domain tanpa `@`, dipisahkan koma jika lebih dari satu; konfigurasi contoh memakai `topscore.co.id`, sehingga karyawan mendaftar dengan alamat seperti `nama@topscore.co.id`. Ini hanya membatasi teks domain email dan tidak memverifikasi kepemilikan alamat.
 
 ```bash
 npm run dev
