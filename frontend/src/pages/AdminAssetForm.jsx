@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
+import GoogleDrivePreview from "../components/GoogleDrivePreview";
+
 
 function keInputDatetime(iso) {
   if (!iso) return "";
@@ -111,10 +113,13 @@ export default function AdminAssetForm() {
               <option value="rusak_ringan">Rusak Ringan</option>
             </select>
           </div>
-          <div>
-            <label>URL Foto (opsional)</label>
-            <input name="foto_url" value={form.foto_url} onChange={ubah} placeholder="https://..." />
-          </div>
+            <div>
+              <label>Foto (link Google Drive atau URL, opsional)</label>
+                <GoogleDrivePreview
+                value={form.foto_url}
+                onChange={(url) => setForm((f) => ({ ...f, foto_url: url }))}
+                />
+            </div>
         </div>
 
         <div className="form-grid-2">
