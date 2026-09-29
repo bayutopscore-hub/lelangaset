@@ -17,14 +17,31 @@ function buatToken(user) {
 // Registrasi akun karyawan baru (role selalu 'karyawan', admin dibuat lewat seed)
 router.post("/register", (req, res) => {
   const { nama, email, password, departemen } = req.body;
-  if (!nama || !email || !password) {
+  if (typeof nama !== "string" || typeof email !== "string" || typeof password !== "string" || !nama.trim() || !email.trim() || !password) {
     return res.status(400).json({ error: "Nama, email, dan password wajib diisi." });
   }
   if (password.length < 6) {
     return res.status(400).json({ error: "Password minimal 6 karakter." });
   }
 
-  const sudahAda = db.prepare("SELECT id FROM users WHERE email = ?").get(email.toLowerCase().trim());
+  const emailNormal = email.toLowerCase().trim();
+  const cocokEmail = emailNormal.match(/^[^@\s]+@([^@\s]+)$/);
+  if (!cocokEmail) {
+    return res.status(400).json({ error: "Format email tidak valid." });
+  }
+
+  const domainDiizinkan = (process.env.ALLOWED_EMAIL_DOMAINS || "")
+    .split(",")
+    .map((domain) => domain.trim().toLowerCase())
+    .filter(Boolean);
+  if (domainDiizinkan.length === 0) {
+    return res.status(503).json({ error: "Registrasi belum dikonfigurasi oleh administrator." });
+  }
+  if (!domainDiizinkan.includes(cocokEmail[1])) {
+    return res.status(403).json({ error: "Gunakan alamat email dari domain perusahaan yang diizinkan." });
+  }
+
+  const sudahAda = db.prepare("SELECT id FROM users WHERE email = ?").get(emailNormal);
   if (sudahAda) {
     return res.status(409).json({ error: "Email sudah terdaftar." });
   }
@@ -32,7 +49,7 @@ router.post("/register", (req, res) => {
   const hash = bcrypt.hashSync(password, 10);
   const info = db
     .prepare("INSERT INTO users (nama, email, password_hash, departemen, role) VALUES (?, ?, ?, ?, 'karyawan')")
-    .run(nama.trim(), email.toLowerCase().trim(), hash, departemen || null);
+    .run(nama.trim(), emailNormal, hash, departemen || null);
 
   const user = db.prepare("SELECT id, nama, email, departemen, role FROM users WHERE id = ?").get(info.lastInsertRowid);
   const token = buatToken(user);

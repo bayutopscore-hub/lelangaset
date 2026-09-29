@@ -1,4 +1,30 @@
 require("dotenv").config();
+
+if (process.env.NODE_ENV === "production") {
+  const jwtSecret = process.env.JWT_SECRET || "";
+  const adminEmail = process.env.ADMIN_EMAIL || "";
+  const adminPassword = process.env.ADMIN_PASSWORD || "";
+  const allowedDomains = (process.env.ALLOWED_EMAIL_DOMAINS || "")
+    .split(",")
+    .map((domain) => domain.trim())
+    .filter(Boolean);
+  const corsOrigin = process.env.CORS_ORIGIN || "";
+  const konfigurasiKurang = [];
+
+  if (jwtSecret.length < 32 || jwtSecret.startsWith("REPLACE_")) konfigurasiKurang.push("JWT_SECRET acak minimal 32 karakter");
+  if (!adminEmail || adminPassword.length < 16 || adminPassword.startsWith("CHANGE_ME")) {
+    konfigurasiKurang.push("ADMIN_EMAIL dan ADMIN_PASSWORD unik minimal 16 karakter");
+  }
+  if (allowedDomains.length === 0) konfigurasiKurang.push("ALLOWED_EMAIL_DOMAINS");
+  if (!/^https:\/\/[^/]+$/.test(corsOrigin) || /localhost|127\.0\.0\.1/i.test(corsOrigin)) {
+    konfigurasiKurang.push("CORS_ORIGIN production menggunakan HTTPS");
+  }
+
+  if (konfigurasiKurang.length > 0) {
+    throw new Error(`Konfigurasi production belum aman: ${konfigurasiKurang.join(", ")}.`);
+  }
+}
+
 const express = require("express");
 const cors = require("cors");
 

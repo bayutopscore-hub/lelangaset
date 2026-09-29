@@ -3,8 +3,14 @@ const bcrypt = require("bcryptjs");
 const db = require("../db");
 
 function seed() {
-  const adminEmail = process.env.ADMIN_EMAIL || "admin@perusahaan.com";
-  const adminPassword = process.env.ADMIN_PASSWORD || "admin123";
+  const adminEmail = (process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+  const adminPassword = process.env.ADMIN_PASSWORD || "";
+  if (!adminEmail || adminPassword.length < 6 || adminPassword.startsWith("CHANGE_ME")) {
+    throw new Error("Atur ADMIN_EMAIL dan ADMIN_PASSWORD non-placeholder di file .env sebelum menjalankan seed.");
+  }
+  if (process.env.NODE_ENV === "production" && adminPassword.length < 16) {
+    throw new Error("ADMIN_PASSWORD minimal 16 karakter di production.");
+  }
 
   const existingAdmin = db.prepare("SELECT id FROM users WHERE email = ?").get(adminEmail);
   if (!existingAdmin) {
@@ -12,7 +18,7 @@ function seed() {
     db.prepare(
       `INSERT INTO users (nama, email, password_hash, departemen, role) VALUES (?, ?, ?, ?, ?)`
     ).run("Administrator", adminEmail, hash, "HO - General Affairs", "admin");
-    console.log(`Admin dibuat: ${adminEmail} / ${adminPassword}`);
+    console.log(`Admin dibuat: ${adminEmail}`);
   } else {
     console.log("Admin sudah ada, dilewati.");
   }
