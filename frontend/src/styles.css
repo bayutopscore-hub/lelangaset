@@ -1,3 +1,10 @@
+.page-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 :root {
   --primary: #1d4ed8;
   --primary-dark: #1e3a8a;
