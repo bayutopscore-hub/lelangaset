@@ -23,6 +23,7 @@ coverage/
 *.db
 *.db-shm
 *.db-wal
+/backend/backups/
 
 # OS/editor files
 .DS_Store

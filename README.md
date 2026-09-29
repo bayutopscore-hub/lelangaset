@@ -31,6 +31,8 @@ Aplikasi lelang aset internal berbasis web. Frontend menggunakan React, Vite, da
 │   ├── package-lock.json
 │   ├── server.js                 # Bootstrap Express, CORS, routes, dan seed
 │   ├── db.js                     # Skema SQLite: users, assets, bids
+│   ├── scripts/
+│   │   └── backup.js             # Backup SQLite online
 │   ├── data/
 │   │   └── seed.js               # Admin awal dan contoh aset
 │   ├── middleware/
@@ -83,7 +85,7 @@ npm install
 cp .env.example .env
 ```
 
-Atur nilai di `backend/.env`, terutama `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, dan `CORS_ORIGIN`. Kemudian jalankan:
+Atur nilai di `backend/.env`, terutama `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ALLOWED_EMAIL_DOMAINS`, dan `CORS_ORIGIN`. Ganti semua nilai contoh sebelum deployment. `ALLOWED_EMAIL_DOMAINS` menerima domain tanpa `@`, dipisahkan koma jika lebih dari satu; konfigurasi contoh memakai `topscore.co.id`, sehingga karyawan mendaftar dengan alamat seperti `nama@topscore.co.id`. Ini hanya membatasi teks domain email dan tidak memverifikasi kepemilikan alamat.
 
 ```bash
 npm run dev
@@ -91,7 +93,7 @@ npm run dev
 
 Backend berjalan di `http://localhost:4000`. Script server menjalankan seed saat startup; pada database kosong, seed membuat admin dan tiga contoh aset. `npm run seed` juga tersedia untuk menjalankan seed secara manual.
 
-Nilai admin pada `.env.example` adalah `admin@topscore.com` / `topscore123`. Tanpa file `.env`, fallback seed adalah `admin@perusahaan.com` / `admin123`. Kredensial hanya digunakan saat akun admin pertama kali dibuat; seed tidak mengganti password admin yang sudah ada. Jangan gunakan kredensial contoh atau `JWT_SECRET` contoh di produksi.
+Nilai admin pada `.env.example` adalah placeholder dan harus diganti sebelum menjalankan server atau seed. Tidak ada fallback kredensial admin hard-coded. Kredensial hanya digunakan saat akun admin pertama kali dibuat; seed tidak mengganti password admin yang sudah ada. Untuk production, gunakan password unik minimal 16 karakter dan secret JWT acak minimal 32 karakter.
 
 ### 2. Frontend
 
@@ -113,6 +115,15 @@ npm run build
 ```
 
 Backend belum memiliki script test otomatis.
+
+Backup SQLite online dapat dibuat saat backend tetap berjalan:
+
+```bash
+cd backend
+npm run backup
+```
+
+File backup bertimestamp disimpan di `backend/backups/` secara default. Atur `BACKUP_DIR` ke storage terpisah untuk production, jadwalkan perintah backup (misalnya harian), tetapkan retensi, dan uji pemulihan berkala. Untuk pemulihan manual, hentikan backend, simpan salinan database saat ini, lalu pulihkan file backup sebagai `backend/lelang.db`.
 
 ## Halaman Aplikasi
 
@@ -161,8 +172,8 @@ Endpoint ekspor menghasilkan CSV UTF-8. Data pengguna yang diekspor tidak mencak
 
 ## Keamanan dan Batasan
 
-- Registrasi terbuka dan hanya membuat akun dengan role `karyawan`; belum ada pembatasan domain email atau integrasi SSO. Batasi akses jaringan aplikasi atau tambahkan kebijakan identitas sebelum penggunaan internal produksi.
-- JWT berlaku selama `JWT_EXPIRES_IN` (default `8h`). Gunakan secret acak yang kuat dan batasi `CORS_ORIGIN` ke origin frontend yang dipercaya.
-- Seed mencetak kredensial admin baru ke log server. Lindungi log dan ganti kredensial contoh sebelum deployment.
-- SQLite disimpan lokal di `backend/lelang.db`; siapkan backup database. Untuk kebutuhan concurrent/write skala lebih besar, pertimbangkan database server.
+- Registrasi dibatasi oleh `ALLOWED_EMAIL_DOMAINS` dan selalu membuat role `karyawan`. Allowlist domain bukan verifikasi kepemilikan email; gunakan verifikasi email atau integrasi SSO perusahaan (OIDC/SAML) bila perlu memastikan identitas karyawan.
+- JWT berlaku selama `JWT_EXPIRES_IN` (default `8h`). Production menolak secret JWT kurang dari 32 karakter, password admin kurang dari 16 karakter, allowlist kosong, atau `CORS_ORIGIN` yang bukan HTTPS. Batasi CORS ke origin frontend yang dipercaya.
+- Seed tidak mencetak password ke log. Lindungi kredensial admin dan secret environment.
+- SQLite disimpan lokal di `backend/lelang.db`; jalankan backup berkala ke storage terpisah dan uji restore. Untuk kebutuhan concurrent/write skala lebih besar, pertimbangkan database server.
 - Aplikasi belum mengirim notifikasi email dan belum menggunakan WebSocket atau layanan real-time.
