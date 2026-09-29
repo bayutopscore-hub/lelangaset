@@ -36,7 +36,12 @@ export default function AdminDashboard() {
           <h1>Panel Admin</h1>
           <p>Kelola aset lelang internal dan pantau hasilnya.</p>
         </div>
-        <Link to="/admin/aset/baru" className="btn btn-primary">+ Tambah Aset</Link>
+        <div className="page-header-actions">
+          <button className="btn btn-ghost" onClick={() => api.exportAdminUsers()}>CSV Pengguna</button>
+          <button className="btn btn-ghost" onClick={() => api.exportAdminBids()}>CSV Aktivitas Bid</button>
+          <button className="btn btn-ghost" onClick={() => api.exportAdminWinners()}>CSV Pemenang</button>
+          <Link to="/admin/aset/baru" className="btn btn-primary">+ Tambah Aset</Link>
+        </div>
       </div>
 
       {stats && (

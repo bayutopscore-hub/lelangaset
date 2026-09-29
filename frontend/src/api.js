@@ -22,6 +22,24 @@ async function request(path, options = {}) {
   return data;
 }
 
+async function downloadCsv(path, filename) {
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Gagal mengunduh file CSV.");
+  }
+
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 export const api = {
   login: (email, password) =>
     request("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
@@ -45,6 +63,9 @@ export const api = {
   adminStats: () => request("/admin/stats"),
   adminUsers: () => request("/admin/users"),
   adminWinners: () => request("/admin/pemenang"),
+  exportAdminUsers: () => downloadCsv("/admin/export/users.csv", "pengguna.csv"),
+  exportAdminBids: () => downloadCsv("/admin/export/bids.csv", "aktivitas-bidding.csv"),
+  exportAdminWinners: () => downloadCsv("/admin/export/pemenang.csv", "pemenang-lelang.csv"),
 };
 
 export { getToken };
