@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 
@@ -11,6 +11,9 @@ export default function AdminDashboard() {
   const [assets, setAssets] = useState([]);
   const [pemenang, setPemenang] = useState([]);
   const [tab, setTab] = useState("aset");
+  const [importing, setImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState(null);
+  const inputExcelRef = useRef(null);
 
   async function muat() {
     const [s, a, p] = await Promise.all([api.adminStats(), api.getAssets(), api.adminWinners()]);
@@ -29,6 +32,27 @@ export default function AdminDashboard() {
     muat();
   }
 
+  async function imporAset(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !window.confirm("Impor aset dari file ini? Baris tanpa ID akan ditambahkan, sedangkan ID yang cocok akan diperbarui. Data lain tidak dihapus.")) return;
+
+    setImporting(true);
+    setImportStatus(null);
+    try {
+      const result = await api.importAdminAssets(file);
+      setImportStatus({
+        type: "success",
+        text: `Impor selesai: ${result.data.ditambahkan} aset ditambahkan dan ${result.data.diperbarui} aset diperbarui.`,
+      });
+      await muat();
+    } catch (error) {
+      setImportStatus({ type: "error", text: error.message });
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <div className="container">
       <div className="page-header page-header-row">
@@ -37,12 +61,19 @@ export default function AdminDashboard() {
           <p>Kelola aset lelang internal dan pantau hasilnya.</p>
         </div>
         <div className="page-header-actions">
+          <button className="btn btn-ghost" onClick={() => api.exportAdminAssets()}>Excel Aset</button>
+          <button className="btn btn-ghost" onClick={() => inputExcelRef.current?.click()} disabled={importing}>
+            {importing ? "Mengimpor..." : "Impor Excel"}
+          </button>
           <button className="btn btn-ghost" onClick={() => api.exportAdminUsers()}>CSV Pengguna</button>
           <button className="btn btn-ghost" onClick={() => api.exportAdminBids()}>CSV Aktivitas Bid</button>
           <button className="btn btn-ghost" onClick={() => api.exportAdminWinners()}>CSV Pemenang</button>
           <Link to="/admin/aset/baru" className="btn btn-primary">+ Tambah Aset</Link>
         </div>
       </div>
+
+      <input ref={inputExcelRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden onChange={imporAset} />
+      {importStatus && <div className={`alert-${importStatus.type}`}>{importStatus.text}</div>}
 
       {stats && (
         <div className="stat-grid">
