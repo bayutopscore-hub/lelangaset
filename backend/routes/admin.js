@@ -1,4 +1,5 @@
 const express = require("express");
+const ExcelJS = require("exceljs");
 const db = require("../db");
 const { authWajib, hanyaAdmin } = require("../middleware/auth");
 
@@ -17,6 +18,189 @@ function kirimCsv(res, namaFile, kolom, baris) {
   res.setHeader("Content-Disposition", `attachment; filename="${namaFile}"`);
   res.send(`\uFEFF${isi}`);
 }
+
+const kolomAset = [
+  "id", "nama_aset", "deskripsi", "kategori", "cabang_asal", "kondisi", "foto_url",
+  "harga_awal", "kelipatan_bid", "mulai_at", "selesai_at", "status",
+];
+const kolomAsetBisaUbah = kolomAset.filter((kolom) => kolom !== "id");
+
+function nilaiSel(cell) {
+  const value = cell.value;
+  if (value == null) return "";
+  if (value instanceof Date) return value;
+  if (typeof value === "object") {
+    if (Array.isArray(value.richText)) return value.richText.map((part) => part.text).join("").trim();
+    if (value.result !== undefined) return value.result;
+    return "";
+  }
+  return typeof value === "string" ? value.trim() : value;
+}
+
+function teks(value) {
+  return value == null ? "" : String(value).trim();
+}
+
+function tanggal(value, label, nomorBaris) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (!value || Number.isNaN(date.getTime())) {
+    throw new Error(`Baris ${nomorBaris}: ${label} tidak valid.`);
+  }
+  return date.toISOString();
+}
+
+function angka(value, label, nomorBaris, { wajib = false, defaultValue = null } = {}) {
+  if (value === "" || value == null) {
+    if (wajib) throw new Error(`Baris ${nomorBaris}: ${label} wajib diisi.`);
+    return defaultValue;
+  }
+  const text = String(value).trim();
+  if (typeof value !== "number" && /[.,]\d{1,2}$/.test(text)) {
+    throw new Error(`Baris ${nomorBaris}: ${label} tidak boleh memiliki angka desimal.`);
+  }
+  const parsed = typeof value === "number" ? value : Number(text.replace(/[^\d-]/g, ""));
+  if (!Number.isSafeInteger(parsed) || parsed < 0 || (wajib && parsed === 0)) {
+    throw new Error(`Baris ${nomorBaris}: ${label} harus berupa bilangan bulat positif.`);
+  }
+  return parsed;
+}
+
+function buatWorkbookAset(assets) {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("Aset");
+  worksheet.columns = kolomAset.map((key) => ({ header: key, key, width: key === "deskripsi" ? 40 : 22 }));
+  for (const asset of assets) {
+    worksheet.addRow(Object.fromEntries(kolomAset.map((key) => [key, asset[key] ?? ""])));
+  }
+  worksheet.views = [{ state: "frozen", ySplit: 1 }];
+  worksheet.getRow(1).font = { bold: true };
+  return workbook;
+}
+
+// GET /api/admin/export/assets.xlsx - ekspor aset sebagai Excel
+router.get("/export/assets.xlsx", async (req, res, next) => {
+  try {
+    const assets = db.prepare("SELECT * FROM assets ORDER BY id").all();
+    const workbook = buatWorkbookAset(assets);
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    res.setHeader("Content-Disposition", 'attachment; filename="aset-lelang.xlsx"');
+    res.send(Buffer.from(buffer));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/admin/import/assets.xlsx - impor aset secara atomik tanpa menghapus data lama
+router.post("/import/assets.xlsx", express.raw({ type: "application/octet-stream", limit: "10mb" }), async (req, res) => {
+  if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+    return res.status(400).json({ error: "Pilih file Excel .xlsx yang akan diimpor." });
+  }
+
+  try {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(req.body);
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet || worksheet.rowCount < 2) {
+      return res.status(400).json({ error: "File Excel harus memiliki header dan minimal satu baris aset." });
+    }
+    if (worksheet.rowCount > 5001) {
+      return res.status(400).json({ error: "Maksimal 5.000 baris aset per impor." });
+    }
+
+    const header = new Map();
+    worksheet.getRow(1).eachCell((cell, columnNumber) => {
+      const key = teks(nilaiSel(cell)).toLowerCase();
+      if (key) header.set(key, columnNumber);
+    });
+    for (const required of ["nama_aset", "harga_awal", "mulai_at", "selesai_at"]) {
+      if (!header.has(required)) {
+        return res.status(400).json({ error: `Kolom wajib '${required}' tidak ditemukan pada baris header.` });
+      }
+    }
+
+    const seenIds = new Set();
+    const rows = [];
+    for (let rowNumber = 2; rowNumber <= worksheet.rowCount; rowNumber += 1) {
+      const row = worksheet.getRow(rowNumber);
+      const values = Object.fromEntries([...header].map(([key, column]) => [key, nilaiSel(row.getCell(column))]));
+      if (Object.values(values).every((value) => value === "" || value == null)) continue;
+
+      let id = null;
+      if (values.id !== undefined && values.id !== "") {
+        id = angka(values.id, "id", rowNumber, { wajib: true });
+        if (id === 0 || seenIds.has(id)) throw new Error(`Baris ${rowNumber}: id aset tidak valid atau duplikat.`);
+        seenIds.add(id);
+      }
+      const existing = id ? db.prepare("SELECT id FROM assets WHERE id = ?").get(id) : null;
+      if (id && !existing) throw new Error(`Baris ${rowNumber}: aset dengan id ${id} tidak ditemukan. ID hanya untuk memperbarui hasil ekspor.`);
+
+      const data = {};
+      for (const key of kolomAsetBisaUbah) {
+        if (!header.has(key)) continue;
+        const value = values[key] ?? "";
+        if (key === "nama_aset") {
+          data[key] = teks(value);
+          if (!data[key]) throw new Error(`Baris ${rowNumber}: nama_aset wajib diisi.`);
+        } else if (key === "harga_awal") {
+          data[key] = angka(value, key, rowNumber, { wajib: true });
+        } else if (key === "kelipatan_bid") {
+          data[key] = angka(value, key, rowNumber, { defaultValue: 50000 }) || 50000;
+        } else if (key === "mulai_at" || key === "selesai_at") {
+          data[key] = tanggal(value, key, rowNumber);
+        } else if (key === "status") {
+          data[key] = teks(value) || (existing ? undefined : "draft");
+          if (data[key] && !["draft", "berjalan", "selesai", "dibatalkan"].includes(data[key])) {
+            throw new Error(`Baris ${rowNumber}: status harus draft, berjalan, selesai, atau dibatalkan.`);
+          }
+        } else if (key === "kondisi") {
+          data[key] = teks(value) || (existing ? undefined : "baik");
+          if (data[key] && !["baik", "perlu_perbaikan", "rusak_ringan"].includes(data[key])) {
+            throw new Error(`Baris ${rowNumber}: kondisi harus baik, perlu_perbaikan, atau rusak_ringan.`);
+          }
+        } else {
+          data[key] = teks(value) || null;
+        }
+      }
+
+      if (new Date(data.selesai_at) <= new Date(data.mulai_at)) {
+        throw new Error(`Baris ${rowNumber}: selesai_at harus setelah mulai_at.`);
+      }
+      rows.push({ id, data });
+    }
+
+    if (rows.length === 0) return res.status(400).json({ error: "Tidak ada baris aset untuk diimpor." });
+
+    const updateColumns = [...header.keys()].filter((key) => kolomAsetBisaUbah.includes(key));
+    const insert = db.prepare(
+      `INSERT INTO assets (${kolomAsetBisaUbah.join(", ")}, dibuat_oleh)
+       VALUES (${kolomAsetBisaUbah.map(() => "?").join(", ")}, ?)`
+    );
+    const update = db.prepare(
+      `UPDATE assets SET ${updateColumns.map((key) => `${key} = ?`).join(", ")} WHERE id = ?`
+    );
+    let ditambahkan = 0;
+    let diperbarui = 0;
+    const simpan = db.transaction(() => {
+      for (const { id, data } of rows) {
+        if (id) {
+          const existing = db.prepare("SELECT * FROM assets WHERE id = ?").get(id);
+          const values = updateColumns.map((key) => data[key] === undefined ? existing[key] : data[key]);
+          update.run(...values, id);
+          diperbarui += 1;
+        } else {
+          const defaults = { kondisi: "baik", kelipatan_bid: 50000, status: "draft" };
+          insert.run(...kolomAsetBisaUbah.map((key) => data[key] ?? defaults[key] ?? null), req.user.id);
+          ditambahkan += 1;
+        }
+      }
+    });
+    simpan();
+    res.json({ data: { ditambahkan, diperbarui } });
+  } catch (error) {
+    res.status(400).json({ error: `Impor dibatalkan: ${error.message}` });
+  }
+});
 
 // GET /api/admin/users - daftar seluruh karyawan terdaftar
 router.get("/users", (req, res) => {

@@ -40,6 +40,39 @@ async function downloadCsv(path, filename) {
   URL.revokeObjectURL(url);
 }
 
+async function downloadExcel(path, filename) {
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || "Gagal mengunduh file Excel.");
+  }
+
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function uploadExcel(path, file) {
+  const token = getToken();
+  const res = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/octet-stream",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: await file.arrayBuffer(),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Gagal mengimpor file Excel.");
+  return data;
+}
+
 export const api = {
   login: (email, password) =>
     request("/auth/login", { method: "POST", body: JSON.stringify({ email, password }) }),
@@ -66,6 +99,8 @@ export const api = {
   exportAdminUsers: () => downloadCsv("/admin/export/users.csv", "pengguna.csv"),
   exportAdminBids: () => downloadCsv("/admin/export/bids.csv", "aktivitas-bidding.csv"),
   exportAdminWinners: () => downloadCsv("/admin/export/pemenang.csv", "pemenang-lelang.csv"),
+  exportAdminAssets: () => downloadExcel("/admin/export/assets.xlsx", "aset-lelang.xlsx"),
+  importAdminAssets: (file) => uploadExcel("/admin/import/assets.xlsx", file),
 };
 
 export { getToken };

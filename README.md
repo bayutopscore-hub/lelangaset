@@ -16,6 +16,7 @@ Aplikasi lelang aset internal berbasis web. Frontend menggunakan React, Vite, da
 - Validasi tawaran berdasarkan jadwal lelang dan kelipatan tawaran minimum.
 - Riwayat tawaran milik pengguna yang sedang login.
 - Panel admin untuk membuat, mengubah, dan membatalkan aset; melihat statistik dan hasil lelang.
+- Ekspor seluruh data aset ke Excel serta impor aset baru atau pembaruan aset melalui file `.xlsx`.
 - Pratinjau foto dari URL gambar atau link Google Drive. File Drive harus dapat diakses oleh siapa saja yang memiliki link.
 - Unduh CSV data pengguna, seluruh aktivitas bidding, dan rekap pemenang.
 
@@ -167,8 +168,12 @@ Semua endpoint aset, bidding, dan admin memerlukan bearer token JWT, kecuali log
 | `GET` | `/api/admin/export/users.csv` | Ekspor pengguna (admin) |
 | `GET` | `/api/admin/export/bids.csv` | Ekspor aktivitas bid dan penanda pemenang (admin) |
 | `GET` | `/api/admin/export/pemenang.csv` | Ekspor rekap pemenang (admin) |
+| `GET` | `/api/admin/export/assets.xlsx` | Ekspor seluruh data aset ke Excel (admin) |
+| `POST` | `/api/admin/import/assets.xlsx` | Impor atau perbarui aset dari Excel (admin) |
 
 Endpoint ekspor menghasilkan CSV UTF-8. Data pengguna yang diekspor tidak mencakup hash kata sandi.
+
+File ekspor aset juga dapat digunakan sebagai template impor. Baris tanpa `id` menambahkan aset baru dengan status `draft`; baris dengan `id` yang masih ada memperbarui aset tersebut. ID yang tidak ditemukan, ID duplikat, nilai tidak valid, atau tanggal selesai yang tidak setelah tanggal mulai akan membatalkan seluruh proses impor. Impor tidak menghapus aset, dibatasi 5.000 baris dan 10 MB, serta mengharuskan kolom `nama_aset`, `harga_awal`, `mulai_at`, dan `selesai_at`. Kolom tanggal menerima tanggal Excel atau teks tanggal yang dapat dibaca JavaScript.
 
 ## Keamanan dan Batasan
 
